@@ -94,8 +94,8 @@
  
  (% method newton carriers=2 trap maxtrap=15)
 
- (cond ((eq? jobtype 'idvd) (calc-idvg vgates vdrains))
-       ((eq? jobtype 'idvg) (calc-idvd vdrains vgates))
+ (cond ((eq? jobtype 'idvd) (calc-idvd vgates vdrains))
+       ((eq? jobtype 'idvg) (calc-idvg vdrains vgates))
        (#t (error ">>>>>> Unkown jobtype ... steop. <<<<<<")))
  
   ;; (calc-idvg vdrains vgates)
