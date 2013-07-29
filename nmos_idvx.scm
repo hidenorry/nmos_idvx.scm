@@ -28,26 +28,15 @@
 (define (strfile-dev)
   #`",|device_path&name|.str")
 
-;>>>>>>>>>>>>>>>>>>>
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; idvd ;;;;;;;;;;;;;
 (define dir-idvds
   #`",|dir-dev|/idvds")
 (define (logfile-idvd vg) ; for each vg, idvd graph is calculated.
   #`",|dir-idvds|/idvds_vg,|vg|.log")
 (define (outfile-idvd vg vd) ; file_vg_vd
   #`",|dir-structure|/trench_vg,|vg|_vd,|vd|.str")
-
-
-(define dir-idvgs
-  #`",|dir-dev|/idvgs")
-(define (logfile-idvg vd) ; for each vd, idvg graph is calculated.
-  #`",|dir-idvgs|/idvgs_vd,|vd|.log")
-(define (outfile-idvg vd vg) ; file_vg_vd
-  #`",|dir-structure|/trench_vd,|vd|_vg,|vg|.str")
-;<<<<<<<<<<<<<<<<<<
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define-block (calc-idvg vdrains vgates)
+(define-block (calc-idvg vdrains vgates vdstep dir-idvgs dir-structure)
   (% system mkdir -p $dir-idvgs)
   (% system mkdir -p $dir-structure)  
   (local ((vgstart (car vgates))
@@ -64,7 +53,14 @@
                      (% save outf= (outfile-idvg vd vg)))
                (% log close))))
 
-(define-block (calc-idvd vgates vdrains)
+;;;; idvg ;;;;;;;;;;;;;
+(define dir-idvgs
+  #`",|dir-dev|/idvgs")
+(define (logfile-idvg vd) ; for each vd, idvg graph is calculated.
+  #`",|dir-idvgs|/idvgs_vd,|vd|.log")
+(define (outfile-idvg vd vg) ; file_vg_vd
+  #`",|dir-structure|/trench_vd,|vd|_vg,|vg|.str")
+(define-block (calc-idvd vgates vdrains vdstep dir-idvds dir-structure)
   (% system mkdir -p $dir-idvds)
   (% system mkdir -p $dir-structure)  
   (local ((vdstart (car vdrains))
@@ -94,8 +90,8 @@
  
  (% method newton carriers=2 trap maxtrap=15)
 
- (cond ((eq? jobtype 'idvd) (calc-idvd vgates vdrains))
-       ((eq? jobtype 'idvg) (calc-idvg vdrains vgates))
+ (cond ((eq? jobtype 'idvd) (calc-idvd vgates vdrains vdstep dir-idvds dir-structure))
+       ((eq? jobtype 'idvg) (calc-idvg vdrains vgates vdstep dir-idvgs dir-structure))
        (#t (error ">>>>>> Unkown jobtype ... steop. <<<<<<")))
  
   ;; (calc-idvg vdrains vgates)
