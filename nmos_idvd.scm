@@ -10,8 +10,9 @@
 (define temp 300)
 (define freq 1e-3)
 
+(define jobtype 'idvg)
+;;(define jobtype 'idvd)
 (define vdstep 0.1)
-
 (define vdrains (list 0 1))
 (define vgates (list 0 1))
 
@@ -93,11 +94,11 @@
  
  (% method newton carriers=2 trap maxtrap=15)
 
- ;; (if (eq? jobtype 'idvd)
- ;;     (calc-idvg vgates vdrains)
- ;;     (calc-idvd vdrains vgates))
+ (cond ((eq? jobtype 'idvd) (calc-idvg vgates vdrains))
+       ((eq? jobtype 'idvg) (calc-idvd vdrains vgates))
+       (#t (error ">>>>>> Unkown jobtype ... steop. <<<<<<")))
  
-  (calc-idvg vdrains vgates)
-  (calc-idvd vgates vdrains)
+  ;; (calc-idvg vdrains vgates)
+  ;; (calc-idvd vgates vdrains)
  
  (% quit))
