@@ -6,7 +6,7 @@
 (load "~/apl/at/gfora.scm")
 (load "~/apl/at/tools.scm")
 
-;;(define device-path&name "../m3")
+;;(define device-path&name-list (list "../m3"))
 ;;(define device_name device_path&name)
 ;;(define device-name "m3")
 
@@ -24,18 +24,31 @@
 (define vgates '(0 1 2 3 4 5))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-
-(define vd-conditions (list 0.05))
-(define vg-conditions (list 0))
-(define vbs-conditions (list -1.0 -0.5 0.0 0.5 1.0))
+;;; base condition
+(define vd-conditions (list 0.05)) ; don't use in idvd
+(define vg-conditions (list 0.05)) ; don't use in idvg
+(define vbs-conditions (list -0.5 0.0 0.5 1.0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (initialize vd vg vbs)
+(define-atlas-block (condition-initialize vd vg vbs)
   (% solve vdrain= $vd name=drain) ; for initialization as to drain
   (% solve vgate= $vg name=gate)
   (% solve vsubstrate= $vbs))
+
+(define-atlas-block (do-job jobtype vdrains vgates strfile coarse-vstep vstep)
+  (cond ((eq? jobtype 'idvd)
+         (list
+          (% solve vfinal= (car vdrains) name=drain vstep= $coarse-vstep)
+          (loop vd vdrains
+                (% solve prev vfinal= $vd name=drain vstep= $vstep)
+                (% save outf= #`",|strfile|_vd,|vd|.str"))))
+        ((eq? jobtype 'idvg)
+         (list
+          (% solve vfinal= (car vgates) name=gate vstep= $coarse-vstep)
+          (loop vg vgates
+                (% solve prev vfinal= $vg name=gate vstep= $vstep)
+                (% save outf= #`",|strfile|_vd,|vd|_vg,|vg|.str"))))))
 
 (do-ec
  (: device-path&name device-path&name-list)
@@ -68,20 +81,11 @@
  
         (% method newton carriers=2 trap maxtrap=15)
 
-        (initialize vd vg vbs)
+        (!condition-initialize vd vg vbs)
         (% save outf= #`",|strfile|_init.str")
         (% log outf= #`",|logfile|.log")
-        (cond ((eq? jobtype 'idvd)
-               (list
-                (% solve vfinal= (car vdrains) name=drain vstep= $coarse-vstep)
-                (loop vd vdrains
-                      (% solve prev vfinal= $vd name=drain vstep= $vstep)
-                      (% save outf= #`",|strfile|_vd,|vd|.str"))))
-              ((eq? jobtype 'idvg)
-               (list
-                (% solve vfinal= (car vgates) name=gate vstep= $coarse-vstep)
-                (loop vg vgates
-                      (% solve prev vfinal= $vg name=gate vstep= $vstep)
-                      (% save outf= #`",|strfile|_vd,|vd|_vg,|vg|.str")))))
+        
+        (!do-job jobtype vdrains vgates strfile coarse-vstep vstep)
+        
         (% log close)
         (% quit)))))
