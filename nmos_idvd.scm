@@ -1,66 +1,81 @@
 #!/usr/bin/env gosh
 
-;;(load "~/apl/at/gfora.scm")
+(use srfi-42)
+(use slib)
+(require 'format)
+(load "~/apl/at/gfora.scm")
+(load "~/apl/at/tools.scm")
 
-(define device_path&name "../m3")
+(define device-path&name "../m3")
 ;;(define device_name device_path&name)
-(define device_name "m3")
+(define device-name "m3")
 
 (define width 1)
 (define temp 300)
 (define freq 1e-3)
 
-(define vdstep 0.1)
-(define vdrains (list 0 1))
-
-(define vgates (list 0 1))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define dir-output
-  #`"output")
-(define dir-dev
-  #`",|dir-output|/,|device_name|")
-(define dir-idvds
-  #`",|dir-dev|/idvds")
-(define dir-structure
-  #`",|dir-dev|/structure")
-
-(define (strfile-dev)
-  #`",|device_path&name|.str")
-(define (logfile-idvd vg) ; for each vg, idvd graph is calculated.
-  #`",|dir-idvds|/idvds_vg,|vg|.log")
-(define (outfile-idvd vg vd) ; file_vg_vd
-  #`",|dir-structure|/trench_vg,|vg|_vd,|vd|.str")
+(define vstep 0.05)
+(define coarse-vstep 0.1)
+(define vdrains (list 0 1 2 3 4 5))
+(define vgates (list 0 1 2 3 4 5))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define base-dir "F")
+(define jobtype-list (list 'idvd 'idvg))
+(define vdrains '(0 1 2 3 4 5))
+(define vgates '(0 1 2 3 4 5))
 
-(<main>
- (% go atlas)
- (% system mkdir -p $dir-idvds)
- (% system mkdir -p $dir-structure)
- (% mesh inf= (strfile-dev) width= $width)
- (% contact name=gate n.poly)
- (% models conmob fldmob consrh auger bgn print temp= 300)
- (% solve init)
- (% solve prev)
+(define vd-conditions (list 0.05))
+(define vg-conditions (list 0))
+(define vbs-conditions (list -1.0 -0.5 0.0 0.5 1.0))
 
- (% output e.mobility h.mobility ey.velocity hy.velocity charge)
- (>> ox.charge e.lines flowlines j.disp j.drift j.diffusion  con.band val.band)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (initialize vd vg vbs)
+  (% solve vdrain= $vd name=drain) ; for initialization as to drain
+  (% solve vgate= $vg name=gate)
+  (% solve vsubstrate= $vbs))
+
+(do-ec
+ (: jobtype jobtype-list)
+ (: vd vd-conditions)
+ (: vg vg-conditions)
+ (: vbs vbs-conditions)
  
- (% method newton carriers=2 trap maxtrap=15)
+ (let* ((basedir "")
+        (basedir (add-variables-name basedir "/vd" vd vd-conditions))
+        (basedir (add-variables-name basedir "/vg" vg vg-conditions))
+        (basedir (add-variables-name basedir "/vbs" vbs vbs-conditions)))
+   (sys-system #`"mkdir -p out,|basedir|")
+   (sys-system #`"mkdir -p str,|basedir|")
+     (<main>
+      (<start> go atlas)
+      (% mesh inf= $device-path&name width= $width)
+      (% contact name=gate n.poly)
+      (% models conmob fldmob consrh auger bgn print temp= 300)
+      (% solve init)
+      (% solve prev)
 
- (local ((vdstart (car vdrains))
-         (vdmains (cdr vdrains)))
-  (loop vg vgates
-        (% solve vdrain= $vdstart name=drain) ; for initialization as to drain
-        (% solve vgate= $vg name=gate)
-        (% save outf= (outfile-idvd vg vdstart))
-      
-        (% log outf= (logfile-idvd vg) j.electron j.hole) ; log start
-        (loop vd vdmains
-              (% solve prev vfinal= $vd name=drain vstep= $vdstep)
-              (% save outf= (outfile-idvd vg vd)))
-        (% log close)))
- (% quit))
+      (% output e.mobility h.mobility ey.velocity hy.velocity charge)
+      (>> ox.charge e.lines flowlines j.disp j.drift j.diffusion  con.band val.band)
+ 
+      (% method newton carriers=2 trap maxtrap=15)
+
+      (initialize vd vg vbs)
+      (% save outf= #`"str,|basedir|/init.str")
+      (% log outf= #`"log,|basedir|/result.log")
+      (cond ((eq? jobtype 'idvd)
+             (list
+              (% solve vfinal= (car vdrains) name=drain vstep= $coarse-vstep)
+              (loop vd vdrains
+                    (% solve prev vfinal= $vd name=drain vstep= $vstep)
+                    (% save outf= #`"str,|basedir|/vd,|vd|.str"))))
+            ((eq? jobtype 'idvg)
+             (list
+              (% solve vfinal= (car vgates) name=gate vstep= $coarse-vstep)
+              (loop vg vgates
+                    (% solve prev vfinal= $vg name=gate vstep= $vstep)
+                    (% save outf= #`"str,|basedir|/vd,|vd|_vg,|vg|.str")))))
+      (% log close)
+      (% quit))))
